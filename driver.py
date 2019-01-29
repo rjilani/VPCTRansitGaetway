@@ -43,16 +43,18 @@ def create_gateway():
 
         time.sleep(10)
         tgateway.createattachments(tarnsitgateway_transitGatewayId, 'vpc-ID',
-                                   ['subnet-IDS'])
+                                   ['subnet-IDS']) # creating attachment to local vpc
         time.sleep(10)
+        # tgateway.createattachments(tarnsitgateway_transitGatewayId, 'vpc-ID',
+        #                            ['subnet-IDS']) # creating attachment to local VPC
         tgateway.createattachments(tarnsitgateway_transitGatewayId, 'vpc-ID',
-                                   ['subnet-IDS'])
+                                     ['subnet-IDS'], sourceaccount=False)  # creating attachment to remote VPC
 
 
 
 
 def delete_tgateay():
-    tgw_data_delete = tgateway.deletetransitgateway('tgw-000000000000')
+    tgw_data_delete = tgateway.deletetransitgateway('tgw-0000000000000')
     print(tgw_data_delete)
 
 # create_gateway()

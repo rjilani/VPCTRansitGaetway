@@ -6,26 +6,28 @@ import logging
 setup_logs()
 jsonutil = JsonUtil(logging.getLogger())
 session = boto3.Session(
-    profile_name='aws_source_admin',
+    profile_name='aws_admin',
     region_name='us-east-1'
 )
 
-ec2client = session.client('ec2')
+ec2client_source = session.client('ec2')
 
-ramclient = session.client('ram')
+ramclient_source = session.client('ram')
 
 sessionorg = boto3.Session(
-    profile_name='orguser_admin',
+    profile_name='orguser',
     region_name='us-east-1'
 )
 
-orgclient = sessionorg.client('ram')
+ec2client_destination = sessionorg.client('ec2')
+
+ramclient_destination = sessionorg.client('ram')
 
 
 # create transit gateway
 def createtgateway(keyname, keyvalue, dryrun=False):
     logging.info("creating transit gateway")
-    response = ec2client.create_transit_gateway(Description='this is a test to create transit gateway via boto3',
+    response = ec2client_source.create_transit_gateway(Description='this is a test to create transit gateway via boto3',
                                                 Options={
                                                     'AutoAcceptSharedAttachments': 'enable'
                                                 },
@@ -51,7 +53,7 @@ def createtgateway(keyname, keyvalue, dryrun=False):
 # Describe the attributes for transit gateway
 def describetransitgateway(tgatewayid, output=True, dryrun=False):
     logging.info("describing transit gateway")
-    response = ec2client.describe_transit_gateways(
+    response = ec2client_source.describe_transit_gateways(
         TransitGatewayIds=[
             tgatewayid,
         ], DryRun=dryrun)
@@ -66,7 +68,7 @@ def describetransitgateway(tgatewayid, output=True, dryrun=False):
 def deletetransitgateway(tgatewayid,  dryrun=False):
     try:
         logging.info("deleting transit gateway")
-        response = ec2client.delete_transit_gateway(TransitGatewayId=tgatewayid,
+        response = ec2client_source.delete_transit_gateway(TransitGatewayId=tgatewayid,
                                                 DryRun=dryrun)
         p_response = jsonutil.pretty_json(response)
         print(p_response)
@@ -79,7 +81,7 @@ def deletetransitgateway(tgatewayid,  dryrun=False):
 # create resource share
 def createresourceshare(name, resource_arns, principals):
     logging.info("creating resource share")
-    response = ramclient.create_resource_share(
+    response = ramclient_source.create_resource_share(
         name=name,
         resourceArns=resource_arns,
         principals=principals,
@@ -99,7 +101,7 @@ def createresourceshare(name, resource_arns, principals):
 # Get resource share invitation url
 def getresourceshareinvitatons(resourcesharearns):
     logging.info("getting resource share invitations")
-    response = orgclient.get_resource_share_invitations(
+    response = ramclient_destination.get_resource_share_invitations(
 
         resourceShareArns=resourcesharearns
     )
@@ -113,7 +115,7 @@ def getresourceshareinvitatons(resourcesharearns):
 def acceptresourceshare(resourceshareinvitationarn):
     logging.info("Accepting resource share invitation")
     try:
-        response = orgclient.accept_resource_share_invitation(resourceShareInvitationArn=resourceshareinvitationarn)
+        response = ramclient_destination.accept_resource_share_invitation(resourceShareInvitationArn=resourceshareinvitationarn)
         p_response = jsonutil.pretty_json(response)
         print(p_response)
         jsonutil.write_json_file("./orgdata/tgw_acceptinvitation.json", p_response)
@@ -122,12 +124,19 @@ def acceptresourceshare(resourceshareinvitationarn):
         print(str(ex))
 
 # creates attachement to VPC
-def createattachments(gatewayid, vpcid, subnetids, dryrun=False):
+def createattachments(gatewayid, vpcid, subnetids, sourceaccount=True, dryrun=False):
     logging.info("Creating attachements")
-    response = ec2client.create_transit_gateway_vpc_attachment(TransitGatewayId=gatewayid,
+    if sourceaccount:
+        response = ec2client_source.create_transit_gateway_vpc_attachment(TransitGatewayId=gatewayid,
                                                                VpcId=vpcid,
                                                                SubnetIds=subnetids,
                                                                DryRun=dryrun)
+    else:
+        print("destination attachements")
+        response = ec2client_destination.create_transit_gateway_vpc_attachment(TransitGatewayId=gatewayid,
+                                                                   VpcId=vpcid,
+                                                                   SubnetIds=subnetids,
+                                                                   DryRun=dryrun)
     p_response = jsonutil.pretty_json(response)
     print(p_response)
     filename = 'tgw_attachments' + vpcid + '.json'
